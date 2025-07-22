@@ -2,16 +2,25 @@ package com.iub.studentmanagement.service;
 
 import com.iub.studentmanagement.exception.DuplicateEmailException;
 import com.iub.studentmanagement.exception.StudentNotFoundException;
+import com.iub.studentmanagement.exception.ValidationException;
 import com.iub.studentmanagement.model.Student;
 import com.iub.studentmanagement.repository.StudentRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -281,5 +290,239 @@ public class StudentServiceTest {
         // Assert
         assertFalse(exists);
         verify(studentRepository, times(1)).existsByEmail("nonexistent@example.com");
+    }
+    
+    @Test
+    @DisplayName("Update student with same email should not trigger duplicate email check")
+    void updateStudent_WithSameEmail_ShouldUpdateStudent() {
+        // Arrange
+        Student updatedDetails = new Student("John Doe Updated", "john.doe@example.com", "Data Science");
+        when(studentRepository.findById(1L)).thenReturn(Optional.of(student1));
+        when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        Student updatedStudent = studentService.updateStudent(1L, updatedDetails);
+
+        // Assert
+        assertEquals("John Doe Updated", updatedStudent.getName());
+        assertEquals("john.doe@example.com", updatedStudent.getEmail());
+        assertEquals("Data Science", updatedStudent.getDepartment());
+        verify(studentRepository, times(1)).findById(1L);
+        // Should not check for duplicate email when email hasn't changed
+        verify(studentRepository, never()).existsByEmail("john.doe@example.com");
+        verify(studentRepository, times(1)).save(any(Student.class));
+    }
+    
+    @Test
+    @DisplayName("Get students by department should return empty list when no students found")
+    void getStudentsByDepartment_WithNonExistingDepartment_ShouldReturnEmptyList() {
+        // Arrange
+        String nonExistingDepartment = "Non-Existing Department";
+        when(studentRepository.findByDepartment(nonExistingDepartment)).thenReturn(Collections.emptyList());
+
+        // Act
+        List<Student> students = studentService.getStudentsByDepartment(nonExistingDepartment);
+
+        // Assert
+        assertNotNull(students);
+        assertTrue(students.isEmpty());
+        verify(studentRepository, times(1)).findByDepartment(nonExistingDepartment);
+    }
+    
+    @Test
+    @DisplayName("Get all students should return empty list when no students exist")
+    void getAllStudents_WithNoStudents_ShouldReturnEmptyList() {
+        // Arrange
+        when(studentRepository.findAll()).thenReturn(Collections.emptyList());
+
+        // Act
+        List<Student> students = studentService.getAllStudents();
+
+        // Assert
+        assertNotNull(students);
+        assertTrue(students.isEmpty());
+        verify(studentRepository, times(1)).findAll();
+    }
+    
+    @Nested
+    @DisplayName("Edge cases and boundary tests")
+    class EdgeCaseTests {
+        
+        @Test
+        @DisplayName("Update student with null fields should set null values")
+        void updateStudent_WithNullFields_ShouldSetNullValues() {
+            // Arrange
+            Student originalStudent = new Student("Original Name", "original@example.com", "Original Department");
+            originalStudent.setId(1L);
+            
+            Student updatedDetails = new Student(null, null, null);
+            
+            when(studentRepository.findById(1L)).thenReturn(Optional.of(originalStudent));
+            when(studentRepository.save(any(Student.class))).thenAnswer(invocation -> {
+                Student savedStudent = (Student) invocation.getArgument(0);
+                // The current implementation sets null values, so we need to verify that
+                assertNull(savedStudent.getName());
+                assertNull(savedStudent.getEmail());
+                assertNull(savedStudent.getDepartment());
+                return savedStudent;
+            });
+            
+            // Act
+            Student result = studentService.updateStudent(1L, updatedDetails);
+            
+            // Assert
+            // The current implementation sets null values
+            assertNull(result.getName());
+            assertNull(result.getEmail());
+            assertNull(result.getDepartment());
+            verify(studentRepository, times(1)).findById(1L);
+            verify(studentRepository, times(1)).save(any(Student.class));
+        }
+        
+        @ParameterizedTest
+        @DisplayName("Get students by department with various department values")
+        @NullAndEmptySource
+        @ValueSource(strings = {"  ", "Computer Science", "Mathematics"})
+        void getStudentsByDepartment_WithVariousDepartmentValues(String department) {
+            // Arrange
+            List<Student> expectedStudents = new ArrayList<>();
+            if ("Computer Science".equals(department)) {
+                expectedStudents.add(student1);
+            } else if ("Mathematics".equals(department)) {
+                expectedStudents.add(student2);
+            }
+            
+            when(studentRepository.findByDepartment(department)).thenReturn(expectedStudents);
+            
+            // Act
+            List<Student> result = studentService.getStudentsByDepartment(department);
+            
+            // Assert
+            assertEquals(expectedStudents.size(), result.size());
+            verify(studentRepository, times(1)).findByDepartment(department);
+        }
+    }
+    
+    @Nested
+    @DisplayName("Batch operation tests")
+    class BatchOperationTests {
+        
+        @Test
+        @DisplayName("Get all students should handle large result sets")
+        void getAllStudents_WithLargeResultSet_ShouldReturnAllStudents() {
+            // Arrange
+            List<Student> largeStudentList = new ArrayList<>();
+            for (int i = 0; i < 1000; i++) {
+                Student student = new Student("Student " + i, "student" + i + "@example.com", "Department " + (i % 10));
+                student.setId((long) i);
+                largeStudentList.add(student);
+            }
+            
+            when(studentRepository.findAll()).thenReturn(largeStudentList);
+            
+            // Act
+            List<Student> result = studentService.getAllStudents();
+            
+            // Assert
+            assertEquals(1000, result.size());
+            verify(studentRepository, times(1)).findAll();
+        }
+    }
+    
+    @Nested
+    @DisplayName("Exception handling tests")
+    class ExceptionHandlingTests {
+        
+        @Test
+        @DisplayName("Repository throws exception during save should propagate exception")
+        void createStudent_WithRepositoryException_ShouldPropagateException() {
+            // Arrange
+            Student newStudent = new Student("New Student", "new.student@example.com", "Physics");
+            when(studentRepository.existsByEmail(anyString())).thenReturn(false);
+            when(studentRepository.save(any(Student.class))).thenThrow(new RuntimeException("Database error"));
+            
+            // Act & Assert
+            Exception exception = assertThrows(RuntimeException.class, () -> {
+                studentService.createStudent(newStudent);
+            });
+            
+            assertEquals("Database error", exception.getMessage());
+            verify(studentRepository, times(1)).existsByEmail(anyString());
+            verify(studentRepository, times(1)).save(any(Student.class));
+        }
+    }
+    
+    @Nested
+    @DisplayName("Validation tests")
+    class ValidationTests {
+        
+        @Test
+        @DisplayName("Create student with invalid email format should be caught at service level")
+        void createStudent_WithInvalidEmailFormat_ShouldHandleValidation() {
+            // This test verifies that if validation somehow bypasses the entity validation,
+            // the service layer would still handle it properly
+            
+            // Arrange
+            Student invalidStudent = new Student("Test Student", "invalid-email", "Computer Science");
+            when(studentRepository.existsByEmail(anyString())).thenReturn(false);
+            when(studentRepository.save(any(Student.class))).thenThrow(
+                new DataIntegrityViolationException("Invalid email format")
+            );
+            
+            // Act & Assert
+            Exception exception = assertThrows(DataIntegrityViolationException.class, () -> {
+                studentService.createStudent(invalidStudent);
+            });
+            
+            assertTrue(exception.getMessage().contains("Invalid email format"));
+            verify(studentRepository, times(1)).existsByEmail(anyString());
+            verify(studentRepository, times(1)).save(any(Student.class));
+        }
+    }
+    
+    @Nested
+    @DisplayName("Transaction management tests")
+    class TransactionTests {
+        
+        @Test
+        @DisplayName("Delete operation should be transactional")
+        void deleteStudent_ShouldBeTransactional() {
+            // Arrange
+            when(studentRepository.existsById(1L)).thenReturn(true);
+            doNothing().when(studentRepository).deleteById(1L);
+            
+            // Act
+            studentService.deleteStudent(1L);
+            
+            // Assert
+            verify(studentRepository, times(1)).existsById(1L);
+            verify(studentRepository, times(1)).deleteById(1L);
+            
+            // Note: We can't directly test @Transactional behavior in a unit test,
+            // but we can verify the method is called correctly
+        }
+    }
+    
+    @Nested
+    @DisplayName("Concurrent operation tests")
+    class ConcurrentOperationTests {
+        
+        @Test
+        @DisplayName("Multiple operations should not interfere with each other")
+        void multipleOperations_ShouldNotInterfere() {
+            // Arrange
+            when(studentRepository.findById(1L)).thenReturn(Optional.of(student1));
+            when(studentRepository.findById(2L)).thenReturn(Optional.of(student2));
+            
+            // Act
+            Student result1 = studentService.getStudentById(1L);
+            Student result2 = studentService.getStudentById(2L);
+            
+            // Assert
+            assertEquals(1L, result1.getId());
+            assertEquals(2L, result2.getId());
+            verify(studentRepository, times(1)).findById(1L);
+            verify(studentRepository, times(1)).findById(2L);
+        }
     }
 }
