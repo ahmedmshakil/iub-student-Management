@@ -41,6 +41,7 @@
 
     <v-main>
       <v-container fluid>
+        <BreadcrumbNav />
         <router-view />
       </v-container>
     </v-main>

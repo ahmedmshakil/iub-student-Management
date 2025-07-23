@@ -1,17 +1,10 @@
 import { createApp } from 'vue'
-import { createRouter, createWebHistory } from 'vue-router'
 import { createVuetify } from 'vuetify'
 import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
 
 import App from './App.vue'
-import routes from './router/routes.js'
-
-// Create router
-const router = createRouter({
-  history: createWebHistory(),
-  routes,
-})
+import router from './router'
 
 // Create Vuetify
 const vuetify = createVuetify({
