@@ -1,6 +1,7 @@
 package com.iub.studentmanagement.dto;
 
 import com.iub.studentmanagement.model.Student;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
@@ -8,13 +9,25 @@ import java.time.LocalDateTime;
  * Data Transfer Object for student responses.
  * Contains all student data to be returned to the client.
  */
+@Schema(description = "Student information returned in API responses")
 public class StudentResponseDTO {
     
+    @Schema(description = "Unique identifier for the student", example = "1")
     private Long id;
+    
+    @Schema(description = "Student's full name", example = "John Doe")
     private String name;
+    
+    @Schema(description = "Student's email address", example = "john.doe@iub.edu")
     private String email;
+    
+    @Schema(description = "Student's academic department", example = "Computer Science")
     private String department;
+    
+    @Schema(description = "Timestamp when the student record was created", example = "2023-01-15T10:30:00")
     private LocalDateTime createdAt;
+    
+    @Schema(description = "Timestamp when the student record was last updated", example = "2023-01-20T14:45:00")
     private LocalDateTime updatedAt;
     
     // Default constructor
