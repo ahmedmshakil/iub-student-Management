@@ -10,7 +10,9 @@ import com.iub.studentmanagement.model.Student;
 import com.iub.studentmanagement.service.StudentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -49,7 +51,7 @@ public class StudentController {
      */
     @Operation(
         summary = "Get all students",
-        description = "Retrieves a list of all students in the system",
+        description = "Retrieves a list of all students in the system. Returns an empty list if no students exist.",
         tags = {"Student Management"}
     )
     @ApiResponses(value = {
@@ -58,7 +60,19 @@ public class StudentController {
             description = "Successfully retrieved student list",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = StudentResponseDTO.class)
+                array = @ArraySchema(schema = @Schema(implementation = StudentResponseDTO.class)),
+                examples = {
+                    @ExampleObject(
+                        name = "typical-response",
+                        summary = "Typical response with multiple students",
+                        value = "[{\"id\":1,\"name\":\"John Doe\",\"email\":\"john.doe@iub.edu\",\"department\":\"Computer Science\",\"createdAt\":\"2023-01-15T10:30:00\",\"updatedAt\":\"2023-01-15T10:30:00\"},{\"id\":2,\"name\":\"Jane Smith\",\"email\":\"jane.smith@iub.edu\",\"department\":\"Mathematics\",\"createdAt\":\"2023-01-16T09:15:00\",\"updatedAt\":\"2023-01-16T09:15:00\"}]"
+                    ),
+                    @ExampleObject(
+                        name = "empty-response",
+                        summary = "Empty response when no students exist",
+                        value = "[]"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -66,7 +80,14 @@ public class StudentController {
             description = "Internal server error",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "server-error",
+                        summary = "Internal server error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":500,\"error\":\"Internal Server Error\",\"message\":\"An unexpected error occurred\",\"path\":\"/api/students\"}"
+                    )
+                }
             )
         )
     })
@@ -87,7 +108,7 @@ public class StudentController {
      */
     @Operation(
         summary = "Get student by ID",
-        description = "Retrieves a specific student by their unique identifier",
+        description = "Retrieves a specific student by their unique identifier. Returns detailed information about the student.",
         tags = {"Student Management"}
     )
     @ApiResponses(value = {
@@ -96,7 +117,14 @@ public class StudentController {
             description = "Successfully retrieved student details",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = StudentResponseDTO.class)
+                schema = @Schema(implementation = StudentResponseDTO.class),
+                examples = {
+                    @ExampleObject(
+                        name = "student-example",
+                        summary = "Example student response",
+                        value = "{\"id\":1,\"name\":\"John Doe\",\"email\":\"john.doe@iub.edu\",\"department\":\"Computer Science\",\"createdAt\":\"2023-01-15T10:30:00\",\"updatedAt\":\"2023-01-15T10:30:00\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -104,7 +132,14 @@ public class StudentController {
             description = "Student not found",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "not-found-example",
+                        summary = "Student not found response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"Student with ID 999 not found\",\"path\":\"/api/students/999\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -112,7 +147,14 @@ public class StudentController {
             description = "Internal server error",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "server-error",
+                        summary = "Internal server error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":500,\"error\":\"Internal Server Error\",\"message\":\"An unexpected error occurred\",\"path\":\"/api/students/1\"}"
+                    )
+                }
             )
         )
     })
@@ -133,8 +175,23 @@ public class StudentController {
      */
     @Operation(
         summary = "Create a new student",
-        description = "Creates a new student record with the provided information",
-        tags = {"Student Management"}
+        description = "Creates a new student record with the provided information. The email must be unique across all students.",
+        tags = {"Student Management"},
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            description = "Student information to create a new record",
+            required = true,
+            content = @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = StudentRequestDTO.class),
+                examples = {
+                    @ExampleObject(
+                        name = "valid-student",
+                        summary = "Valid student creation request",
+                        value = "{\"name\":\"John Doe\",\"email\":\"john.doe@iub.edu\",\"department\":\"Computer Science\"}"
+                    )
+                }
+            )
+        )
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -142,7 +199,14 @@ public class StudentController {
             description = "Student successfully created",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = StudentResponseDTO.class)
+                schema = @Schema(implementation = StudentResponseDTO.class),
+                examples = {
+                    @ExampleObject(
+                        name = "created-student",
+                        summary = "Created student response",
+                        value = "{\"id\":1,\"name\":\"John Doe\",\"email\":\"john.doe@iub.edu\",\"department\":\"Computer Science\",\"createdAt\":\"2023-01-15T10:30:00\",\"updatedAt\":\"2023-01-15T10:30:00\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -150,7 +214,14 @@ public class StudentController {
             description = "Invalid input data",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "validation-error",
+                        summary = "Validation error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":400,\"error\":\"Bad Request\",\"message\":\"Validation failed for object 'studentRequestDTO'\",\"path\":\"/api/students\",\"fieldErrors\":{\"name\":\"Name is required\",\"email\":\"Email should be valid\"}}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -158,7 +229,14 @@ public class StudentController {
             description = "Email already exists",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "duplicate-email",
+                        summary = "Duplicate email error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":409,\"error\":\"Conflict\",\"message\":\"Student with email 'john.doe@iub.edu' already exists\",\"path\":\"/api/students\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -166,7 +244,14 @@ public class StudentController {
             description = "Internal server error",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "server-error",
+                        summary = "Internal server error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":500,\"error\":\"Internal Server Error\",\"message\":\"An unexpected error occurred\",\"path\":\"/api/students\"}"
+                    )
+                }
             )
         )
     })
@@ -197,8 +282,23 @@ public class StudentController {
      */
     @Operation(
         summary = "Update an existing student",
-        description = "Updates a student record with the provided information",
-        tags = {"Student Management"}
+        description = "Updates a student record with the provided information. All fields will be updated with the new values.",
+        tags = {"Student Management"},
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+            description = "Updated student information",
+            required = true,
+            content = @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = StudentRequestDTO.class),
+                examples = {
+                    @ExampleObject(
+                        name = "update-student",
+                        summary = "Student update request example",
+                        value = "{\"name\":\"John Smith\",\"email\":\"john.smith@iub.edu\",\"department\":\"Data Science\"}"
+                    )
+                }
+            )
+        )
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -206,7 +306,14 @@ public class StudentController {
             description = "Student successfully updated",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = StudentResponseDTO.class)
+                schema = @Schema(implementation = StudentResponseDTO.class),
+                examples = {
+                    @ExampleObject(
+                        name = "updated-student",
+                        summary = "Updated student response",
+                        value = "{\"id\":1,\"name\":\"John Smith\",\"email\":\"john.smith@iub.edu\",\"department\":\"Data Science\",\"createdAt\":\"2023-01-15T10:30:00\",\"updatedAt\":\"2023-01-20T14:45:00\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -214,7 +321,14 @@ public class StudentController {
             description = "Invalid input data",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "validation-error",
+                        summary = "Validation error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":400,\"error\":\"Bad Request\",\"message\":\"Validation failed for object 'studentRequestDTO'\",\"path\":\"/api/students/1\",\"fieldErrors\":{\"name\":\"Name is required\",\"email\":\"Email should be valid\"}}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -222,7 +336,14 @@ public class StudentController {
             description = "Student not found",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "not-found-example",
+                        summary = "Student not found response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"Student with ID 999 not found\",\"path\":\"/api/students/999\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -230,7 +351,14 @@ public class StudentController {
             description = "Email already exists",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "duplicate-email",
+                        summary = "Duplicate email error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":409,\"error\":\"Conflict\",\"message\":\"Student with email 'john.smith@iub.edu' already exists\",\"path\":\"/api/students/1\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -238,7 +366,14 @@ public class StudentController {
             description = "Internal server error",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "server-error",
+                        summary = "Internal server error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":500,\"error\":\"Internal Server Error\",\"message\":\"An unexpected error occurred\",\"path\":\"/api/students/1\"}"
+                    )
+                }
             )
         )
     })
@@ -270,7 +405,7 @@ public class StudentController {
      */
     @Operation(
         summary = "Delete a student",
-        description = "Deletes a student record by their unique identifier",
+        description = "Deletes a student record by their unique identifier. This operation cannot be undone.",
         tags = {"Student Management"}
     )
     @ApiResponses(value = {
@@ -284,7 +419,14 @@ public class StudentController {
             description = "Student not found",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "not-found-example",
+                        summary = "Student not found response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":404,\"error\":\"Not Found\",\"message\":\"Student with ID 999 not found\",\"path\":\"/api/students/999\"}"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -292,7 +434,14 @@ public class StudentController {
             description = "Internal server error",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "server-error",
+                        summary = "Internal server error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":500,\"error\":\"Internal Server Error\",\"message\":\"An unexpected error occurred\",\"path\":\"/api/students/1\"}"
+                    )
+                }
             )
         )
     })
@@ -312,7 +461,7 @@ public class StudentController {
      */
     @Operation(
         summary = "Get students by department",
-        description = "Retrieves all students belonging to a specific department",
+        description = "Retrieves all students belonging to a specific department. Returns an empty list if no students are found in the specified department.",
         tags = {"Student Management"}
     )
     @ApiResponses(value = {
@@ -321,7 +470,19 @@ public class StudentController {
             description = "Successfully retrieved students by department",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = StudentResponseDTO.class)
+                array = @ArraySchema(schema = @Schema(implementation = StudentResponseDTO.class)),
+                examples = {
+                    @ExampleObject(
+                        name = "department-students",
+                        summary = "Students in Computer Science department",
+                        value = "[{\"id\":1,\"name\":\"John Doe\",\"email\":\"john.doe@iub.edu\",\"department\":\"Computer Science\",\"createdAt\":\"2023-01-15T10:30:00\",\"updatedAt\":\"2023-01-15T10:30:00\"},{\"id\":3,\"name\":\"Alice Johnson\",\"email\":\"alice.johnson@iub.edu\",\"department\":\"Computer Science\",\"createdAt\":\"2023-01-18T11:20:00\",\"updatedAt\":\"2023-01-18T11:20:00\"}]"
+                    ),
+                    @ExampleObject(
+                        name = "empty-department",
+                        summary = "No students in the specified department",
+                        value = "[]"
+                    )
+                }
             )
         ),
         @ApiResponse(
@@ -329,7 +490,14 @@ public class StudentController {
             description = "Internal server error",
             content = @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                    @ExampleObject(
+                        name = "server-error",
+                        summary = "Internal server error response",
+                        value = "{\"timestamp\":\"2023-01-15T10:30:00\",\"status\":500,\"error\":\"Internal Server Error\",\"message\":\"An unexpected error occurred\",\"path\":\"/api/students/department/Computer%20Science\"}"
+                    )
+                }
             )
         )
     })
