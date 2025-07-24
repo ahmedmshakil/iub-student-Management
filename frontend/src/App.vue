@@ -136,9 +136,11 @@
 </template>
 
 <script>
-import { ref, provide, computed } from 'vue'
+import { ref, provide, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import BreadcrumbNav from '@/components/BreadcrumbNav.vue'
+import { setNotificationFunction } from '@/services/studentService'
+import loadingState from '@/services/loadingState'
 
 export default {
   name: 'App',

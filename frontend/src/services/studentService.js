@@ -1,4 +1,8 @@
 import axios from 'axios'
+import loadingState from './loadingState'
+
+// Generate a unique request ID
+const generateRequestId = () => `req_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 
 /**
  * Create axios instance with base configuration
@@ -14,17 +18,100 @@ const api = axios.create({
   timeout: 10000 // 10 second timeout
 })
 
+// Store for notification function that will be set from a component
+let notifyFunction = null
+
+/**
+ * Set the notification function to be used by interceptors
+ * @param {Function} notifyFn - Function to show notifications
+ */
+export const setNotificationFunction = (notifyFn) => {
+  notifyFunction = notifyFn
+}
+
+/**
+ * Show a notification if the notification function is available
+ * @param {string} message - Message to display
+ * @param {string} type - Notification type (success, error, info, warning)
+ */
+const notify = (message, type = 'error') => {
+  if (notifyFunction) {
+    notifyFunction(message, type)
+  } else {
+    console[type === 'error' ? 'error' : 'log'](message)
+  }
+}
+
+/**
+ * Extract resource information from request config
+ * @param {Object} config - Axios request config
+ * @returns {Object} Resource information
+ */
+const getResourceInfo = (config) => {
+  const url = config.url || ''
+  
+  // Extract resource type and ID from URL
+  let resource = 'global'
+  let id = undefined
+  
+  if (url.includes('/students')) {
+    resource = 'students'
+    
+    // Extract ID from URL if it's a specific student request
+    const matches = url.match(/\/students\/(\d+)/)
+    if (matches && matches[1]) {
+      id = matches[1]
+      resource = 'studentDetail'
+    }
+  }
+  
+  return { resource, id }
+}
+
 /**
  * Request interceptor for API calls
- * Can be used to add authentication headers or other request modifications
+ * Manages loading states and adds common headers
  */
 api.interceptors.request.use(
   (config) => {
-    // Add any auth headers here if needed
-    // For example: config.headers.Authorization = `Bearer ${localStorage.getItem('token')}`;
+    // Generate a unique request ID
+    const requestId = generateRequestId()
+    config.requestId = requestId
+    
+    // Extract resource information
+    const { resource, id } = getResourceInfo(config)
+    
+    // Start loading state
+    loadingState.startLoading(resource, id, requestId)
+    
+    // Add timestamp for cache busting on GET requests
+    if (config.method?.toLowerCase() === 'get') {
+      config.params = {
+        ...config.params,
+        _t: Date.now()
+      }
+    }
+    
+    // Add common headers for all requests
+    config.headers = {
+      ...config.headers,
+      'X-Request-ID': requestId,
+      'X-Client-Timestamp': new Date().toISOString()
+    }
+    
+    // Add auth headers if available
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    
     return config
   },
   (error) => {
+    // End loading state on request error
+    loadingState.endLoading('global')
+    console.error('Request interceptor error:', error)
+    notify('Failed to send request. Please check your connection.', 'error')
     return Promise.reject(error)
   }
 )
@@ -35,38 +122,105 @@ api.interceptors.request.use(
  */
 api.interceptors.response.use(
   (response) => {
-    // You can transform the data here if needed
+    // Extract resource information and request ID
+    const { resource, id } = getResourceInfo(response.config)
+    const requestId = response.config.requestId
+    
+    // End loading state
+    loadingState.endLoading(resource, id, requestId)
+    
+    // Log successful responses in development environment
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`API Success [${response.config.method?.toUpperCase()}] ${response.config.url}:`, response.data)
+    }
+    
+    // Show success notifications for create, update, delete operations
+    const method = response.config.method?.toLowerCase()
+    if (['post', 'put', 'delete'].includes(method)) {
+      let message = ''
+      if (method === 'post') {
+        message = 'Record created successfully'
+      } else if (method === 'put') {
+        message = 'Record updated successfully'
+      } else if (method === 'delete') {
+        message = 'Record deleted successfully'
+      }
+      
+      if (message) {
+        notify(message, 'success')
+      }
+    }
+    
     return response
   },
   (error) => {
+    // Extract resource information and request ID
+    const { resource, id } = error.config ? getResourceInfo(error.config) : { resource: 'global', id: undefined }
+    const requestId = error.config?.requestId
+    
+    // End loading state
+    loadingState.endLoading(resource, id, requestId)
+    
     // Handle global errors here
     const errorMessage = error.response?.data?.message || error.message
-    console.error('API Error:', errorMessage)
+    const errorDetails = error.response?.data?.details || {}
+    
+    // Log detailed error information
+    console.error('API Error:', {
+      status: error.response?.status,
+      message: errorMessage,
+      details: errorDetails,
+      url: error.config?.url,
+      method: error.config?.method,
+      requestId
+    })
 
-    // You can handle specific error codes here
+    // Handle specific error codes
     if (error.response) {
       switch (error.response.status) {
         case 401:
-          console.error('Unauthorized access')
-          // Handle unauthorized (e.g., redirect to login)
+          notify('Unauthorized access. Please log in again.', 'error')
+          // Redirect to login page if authentication is required
+          // window.location.href = '/login'
           break
         case 403:
-          console.error('Forbidden access')
-          // Handle forbidden
+          notify('You do not have permission to perform this action.', 'error')
           break
         case 404:
-          console.error('Resource not found')
-          // Handle not found
+          notify('The requested resource was not found.', 'error')
           break
         case 409:
-          console.error('Conflict error')
-          // Handle conflict (e.g., duplicate email)
+          notify('A conflict occurred. This record may already exist.', 'error')
+          break
+        case 422:
+          // Handle validation errors with field-specific messages
+          if (errorDetails && typeof errorDetails === 'object') {
+            const fieldErrors = Object.entries(errorDetails)
+              .map(([field, message]) => `${field}: ${message}`)
+              .join(', ')
+            notify(`Validation failed: ${fieldErrors}`, 'error')
+          } else {
+            notify('Validation failed. Please check your input.', 'error')
+          }
           break
         case 500:
-          console.error('Server error')
-          // Handle server error
+          notify('An unexpected server error occurred. Please try again later.', 'error')
           break
+        default:
+          notify(`Error: ${errorMessage}`, 'error')
       }
+    } else if (error.request) {
+      // The request was made but no response was received
+      notify('Network error. Please check your connection and try again.', 'error')
+      
+      // Implement automatic retry for network errors (optional)
+      // if (error.config && !error.config.__isRetryRequest) {
+      //   error.config.__isRetryRequest = true
+      //   return api(error.config)
+      // }
+    } else {
+      // Something happened in setting up the request
+      notify('An error occurred while setting up the request.', 'error')
     }
 
     return Promise.reject(error)
